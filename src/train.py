@@ -123,6 +123,20 @@ def training_loop(langauge_path,
                   model_config_path="../configs/models/default.yml",
                   hyperparameter_config_path="../configs/hyperparameters/default.yml"):
 
+    class EarlyStopper:
+        """
+        Uses a criterion (e.g. val loss) to end training early, if necessary
+        """
+
+        def __init__(self, patience):
+
+            self.patience = patience
+            self.criterion_history = []
+
+        def step(self, criterion):
+
+            self.criterion_history.append(criterion)
+
     with open(model_config_path, 'r') as model_config_file:
         model_config_args = yaml.safe_load(model_config_file)
 
