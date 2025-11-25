@@ -3,6 +3,7 @@ from typing import Union
 import spectrans
 import torch
 import json
+import yaml
 
 from vocabs import Vocabulary
 
@@ -11,6 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from spectrans.models import FNet
+from spectrans.config.models import FNetModelConfig
 from pathlib import Path
 
 # Set to path of .json vocab files
@@ -63,7 +65,16 @@ def pad_batch(batch: list):
     label_batch = torch.tensor(label_batch)
     return {"input": padded_batch, "label": label_batch}
 
-def training_loop(language_config, model_config="../configs/default.yml", ):
+def training_loop(langauge,
+                  eval_subset,
+                  model_config_path="../configs/models/default.yml",
+                  hyperparameter_config_path="../configs/hyperparameters/default.yml"):
+
+    with open(model_config_path, 'r') as model_config_file:
+        model_config_args = yaml.load(model_config_file, Loader=yaml.BaseLoader)
+
+    model_config = FNetModelConfig(**model_config_args)
+    model = FNet.from_config(model_config)
 
 
     pass

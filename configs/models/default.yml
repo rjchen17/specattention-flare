@@ -2,5 +2,5 @@
 
 hidden_dim: 40
 num_layers: 5
-max_sequence_length: 500
+sequence_length: 500
 num_classes: 1
