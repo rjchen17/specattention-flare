@@ -99,7 +99,7 @@ def training_loop(langauge_path,
 
     for epoch in range(epochs):
         for batch in train_loader:
-            # output = model(inputs_embeds=dyck_embedding(batch["input"]))
+
             output = model(batch["input"])
             output = output.squeeze(1)
             loss = criterion(output, batch["label"])
@@ -116,7 +116,7 @@ def training_loop(langauge_path,
     num_total = 0
     for batch in test_loader:
         with torch.no_grad():
-            # output = model(inputs_embeds=dyck_embedding(batch["input"])).squeeze(1)
+
             output = model(batch["input"]).squeeze(1)
             activation = nn.Sigmoid()
             logits = activation(output)
