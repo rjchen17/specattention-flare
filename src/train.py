@@ -4,6 +4,7 @@ import spectrans
 import torch
 import json
 import yaml
+from torch.export import FlatArgsAdapter
 
 from vocabs import Vocabulary
 
@@ -65,55 +66,40 @@ def pad_batch(batch: list):
     label_batch = torch.tensor(label_batch)
     return {"input": padded_batch, "label": label_batch}
 
-def training_loop(langauge,
-                  eval_subset,
+def training_loop(langauge_path,
+                  val_subset,
+                  test_subset,
                   model_config_path="../configs/models/default.yml",
                   hyperparameter_config_path="../configs/hyperparameters/default.yml"):
 
     with open(model_config_path, 'r') as model_config_file:
         model_config_args = yaml.load(model_config_file, Loader=yaml.BaseLoader)
 
+    with open(hyperparameter_config_path, 'r') as hyperparameter_config_file:
+        hyperparameters = yaml.load(hyperparameter_config_file, Loader=yaml.BaseLoader)
+
     model_config = FNetModelConfig(**model_config_args)
     model = FNet.from_config(model_config)
+    model.embedding.padding_idx = 0 # TODO: not sure if this is necessary
 
+    train_dataset = FLAREDataset(language=langauge_path)
+    val_dataset = FLAREDataset(language=langauge_path, subset=val_subset)
+    test_dataset = FLAREDataset(language=langauge_path, subset=test_subset)
 
-    pass
+    train_loader = DataLoader(train_dataset, batch_size=hyperparameters["batch_size"], collate_fn=pad_batch)
+    val_loader = DataLoader(val_dataset, hyperparameters["batch_size"], collate_fn=pad_batch)
+    test_loader = DataLoader(test_dataset, hyperparameters["batch_size"], collate_fn=pad_batch)
 
-if __name__ == "__main__":
-
-    dyck2_train = FLAREDataset(language="../flare/parity/")
-    dyck_2_eval = FLAREDataset(language="../flare/parity/", subset="test")
-
-    train_loader = DataLoader(dyck2_train, batch_size=16, collate_fn=pad_batch)
-    eval_loader = DataLoader(dyck_2_eval, batch_size=16, collate_fn=pad_batch)
-
-    embedding_dim = 40
-
-    model = FNet(
-        vocab_size=len(dyck2_train.vocab) + 1,
-        hidden_dim=embedding_dim,
-        num_layers=5,
-        max_sequence_length=500,
-        num_classes=1
-    )
-    model.embedding.padding_idx = 0
-
-    total = 0
-    for parameter in model.parameters():
-        total += parameter.numel()
-    print(total)
-    #dyck_embedding = nn.Embedding(num_embeddings=len(dyck2_train.vocab) + 1, embedding_dim=embedding_dim, padding_idx=0)
-
-    optimizer = AdamW(model.parameters(), lr=1e-4)
+    optimizer = AdamW(model.parameters(), lr=hyperparameters["lr"])
     scheduler = ReduceLROnPlateau(optimizer=optimizer, mode="min", factor=0.5, patience=5)
     criterion = nn.BCEWithLogitsLoss()
-    epochs = 50
 
+    epochs = hyperparameters["max_train_epochs"]
     model.train()
+
     for epoch in range(epochs):
         for batch in train_loader:
-
-            #output = model(inputs_embeds=dyck_embedding(batch["input"]))
+            # output = model(inputs_embeds=dyck_embedding(batch["input"]))
             output = model(batch["input"])
             output = output.squeeze(1)
             loss = criterion(output, batch["label"])
@@ -128,10 +114,9 @@ if __name__ == "__main__":
     model.eval()
     num_correct = 0
     num_total = 0
-    for batch in eval_loader:
+    for batch in test_loader:
         with torch.no_grad():
-
-            #output = model(inputs_embeds=dyck_embedding(batch["input"])).squeeze(1)
+            # output = model(inputs_embeds=dyck_embedding(batch["input"])).squeeze(1)
             output = model(batch["input"]).squeeze(1)
             activation = nn.Sigmoid()
             logits = activation(output)
@@ -139,8 +124,13 @@ if __name__ == "__main__":
             num_total += labels.size()[0]
             num_correct += torch.eq(torch.round(logits), labels).sum().item()
 
-    print(num_correct, num_total)
-    print(num_correct / num_total)
+
+def main():
+    training_loop(langauge_path="../flare/binary-addition", val_subset="validation-long", test_subset="test")
+
+if __name__ == "__main__":
+
+    main()
 
 
 
