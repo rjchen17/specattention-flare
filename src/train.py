@@ -124,10 +124,10 @@ def training_loop(langauge_path,
                   hyperparameter_config_path="../configs/hyperparameters/default.yml"):
 
     with open(model_config_path, 'r') as model_config_file:
-        model_config_args = yaml.load(model_config_file, Loader=yaml.BaseLoader)
+        model_config_args = yaml.safe_load(model_config_file)
 
     with open(hyperparameter_config_path, 'r') as hyperparameter_config_file:
-        hyperparameters = yaml.load(hyperparameter_config_file, Loader=yaml.BaseLoader)
+        hyperparameters = yaml.safe_load(hyperparameter_config_file)
 
     train_dataset = FLAREDataset(language=langauge_path, vocab_path=vocab_path)
     val_dataset = FLAREDataset(language=langauge_path, subset=val_subset, vocab_path=vocab_path)
