@@ -16,9 +16,6 @@ from spectrans.models import FNet
 from spectrans.config.models import FNetModelConfig
 from pathlib import Path
 
-# Set to path of .json vocab files
-vocab_path = Path("../vocabs")
-
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -36,12 +33,21 @@ def parse_args():
                         default="test",
                         help="Which test set to use. ")
 
+    parser.add_argument("--path_to_flare",
+                        type=str,
+                        default="../flare",
+                        help="Path to the 'flare' directory. ")
+
+    parser.add_argument("--path_to_vocabs",
+                        type=str,
+                        default="../vocabs",
+                        help="Path to the 'vocabs' directory. ")
     args = parser.parse_args()
     return args
 
 class FLAREDataset(Dataset):
 
-    def __init__(self, language: Union[str, Path], subset: str = None):
+    def __init__(self, language: Union[str, Path], subset: str = None, vocab_path=None):
         if type(language) is not Path:
             language = Path(language)
 
@@ -111,6 +117,7 @@ def evaluate(model, dataloader: DataLoader, criterion):
     return {"loss": loss, "accuracy": accuracy}
 
 def training_loop(langauge_path,
+                  vocab_path,
                   val_subset,
                   test_subset,
                   model_config_path="../configs/models/default.yml",
@@ -126,9 +133,9 @@ def training_loop(langauge_path,
     model = FNet.from_config(model_config)
     model.embedding.padding_idx = 0 # TODO: not sure if this is necessary
 
-    train_dataset = FLAREDataset(language=langauge_path)
-    val_dataset = FLAREDataset(language=langauge_path, subset=val_subset)
-    test_dataset = FLAREDataset(language=langauge_path, subset=test_subset)
+    train_dataset = FLAREDataset(language=langauge_path, vocab_path=vocab_path)
+    val_dataset = FLAREDataset(language=langauge_path, subset=val_subset, vocab_path=vocab_path)
+    test_dataset = FLAREDataset(language=langauge_path, subset=test_subset, vocab_path=vocab_path)
 
     train_loader = DataLoader(train_dataset, batch_size=hyperparameters["batch_size"], collate_fn=pad_batch)
     val_loader = DataLoader(val_dataset, hyperparameters["batch_size"], collate_fn=pad_batch)
@@ -168,12 +175,15 @@ def training_loop(langauge_path,
 def main():
 
     args = parse_args()
-    training_loop(langauge_path="../flare/binary-addition",
-                  val_subset=args.val_subset,
-                  test_subset=args.test_subset)
+
+    if args.languages == "all":
+        for language in Path(args.path_to_flare).iterdir():
+            training_loop(langauge_path=language,
+                          vocab_path=args.path_to_vocabs,
+                          val_subset=args.val_subset,
+                          test_subset=args.test_subset)
 
 if __name__ == "__main__":
-
     main()
 
 
