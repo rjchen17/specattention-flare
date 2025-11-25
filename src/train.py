@@ -4,7 +4,7 @@ import spectrans
 import torch
 import json
 import yaml
-from torch.export import FlatArgsAdapter
+import argparse
 
 from vocabs import Vocabulary
 
@@ -18,6 +18,26 @@ from pathlib import Path
 
 # Set to path of .json vocab files
 vocab_path = Path("../vocabs")
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--languages",
+                        type=str,
+                        default="all",
+                        help="Comma separated list of languages to run training on. Use 'all' for all languages. ")
+    parser.add_argument("--val_subset",
+                        type=str,
+                        default="validation-long",
+                        help="Which validation set to use. ")
+
+    parser.add_argument("--test_subset",
+                        type=str,
+                        default="test",
+                        help="Which test set to use. ")
+
+    args = parser.parse_args()
+    return args
 
 class FLAREDataset(Dataset):
 
@@ -146,7 +166,11 @@ def training_loop(langauge_path,
     test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
 
 def main():
-    training_loop(langauge_path="../flare/binary-addition", val_subset="validation-long", test_subset="test")
+
+    args = parse_args()
+    training_loop(langauge_path="../flare/binary-addition",
+                  val_subset=args.val_subset,
+                  test_subset=args.test_subset)
 
 if __name__ == "__main__":
 
