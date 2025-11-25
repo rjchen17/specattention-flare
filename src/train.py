@@ -129,17 +129,19 @@ def training_loop(langauge_path,
     with open(hyperparameter_config_path, 'r') as hyperparameter_config_file:
         hyperparameters = yaml.load(hyperparameter_config_file, Loader=yaml.BaseLoader)
 
-    model_config = FNetModelConfig(**model_config_args)
-    model = FNet.from_config(model_config)
-    model.embedding.padding_idx = 0 # TODO: not sure if this is necessary
-
     train_dataset = FLAREDataset(language=langauge_path, vocab_path=vocab_path)
     val_dataset = FLAREDataset(language=langauge_path, subset=val_subset, vocab_path=vocab_path)
     test_dataset = FLAREDataset(language=langauge_path, subset=test_subset, vocab_path=vocab_path)
 
+    # Set model embedding vocab size
+    model_config_args["vocab_size"] = len(train_dataset.vocab) + 1
+    model_config = FNetModelConfig(**model_config_args)
+    model = FNet.from_config(model_config)
+    model.embedding.padding_idx = 0  # TODO: not sure if this is necessary
+
     train_loader = DataLoader(train_dataset, batch_size=hyperparameters["batch_size"], collate_fn=pad_batch)
-    val_loader = DataLoader(val_dataset, hyperparameters["batch_size"], collate_fn=pad_batch)
-    test_loader = DataLoader(test_dataset, hyperparameters["batch_size"], collate_fn=pad_batch)
+    val_loader = DataLoader(val_dataset, batch_size=hyperparameters["batch_size"], collate_fn=pad_batch)
+    test_loader = DataLoader(test_dataset, batch_size=hyperparameters["batch_size"], collate_fn=pad_batch)
 
     optimizer = AdamW(model.parameters(), lr=hyperparameters["lr"])
     criterion = nn.BCEWithLogitsLoss()
