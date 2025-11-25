@@ -135,27 +135,15 @@ def training_loop(langauge_path,
             loss.backward()
             optimizer.step()
 
-    # Run validation
-    val_output = evaluate(model=model, dataloader=val_loader, criterion=criterion)
-    val_loss = val_output["loss"]
-    val_acc = val_output["acc"]
+        # Run validation
+        val_output = evaluate(model=model, dataloader=val_loader, criterion=criterion)
+        val_loss = val_output["loss"]
+        val_acc = val_output["acc"]
 
-    # Update lr
-    scheduler.step(val_loss)
+        # Update lr
+        scheduler.step(val_loss)
 
-    model.eval()
-    num_correct = 0
-    num_total = 0
-    for batch in test_loader:
-        with torch.no_grad():
-
-            output = model(batch["input"]).squeeze(1)
-            activation = nn.Sigmoid()
-            logits = activation(output)
-            labels = batch["label"]
-            num_total += labels.size()[0]
-            num_correct += torch.eq(torch.round(logits), labels).sum().item()
-
+    test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
 
 def main():
     training_loop(langauge_path="../flare/binary-addition", val_subset="validation-long", test_subset="test")
