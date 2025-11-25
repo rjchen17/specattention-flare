@@ -66,6 +66,30 @@ def pad_batch(batch: list):
     label_batch = torch.tensor(label_batch)
     return {"input": padded_batch, "label": label_batch}
 
+def evaluate(model, dataloader: DataLoader, criterion):
+    with torch.no_grad():
+        total = 0
+        correct = 0
+        loss = 0.0
+
+        model.eval()
+        for batch in dataloader:
+
+            output = model(batch["input"]).squeeze(1)
+            activation = nn.Sigmoid()
+            logits = activation(output)
+            labels = batch["label"]
+
+            total += labels.size(0)
+            correct += torch.eq(torch.round(logits), labels).sum().item()
+            loss += criterion(output, labels).item() * labels.size(0)
+
+    # Take mean
+    accuracy = 100 * correct / total
+    loss /= len(dataloader.dataset)
+
+    return {"loss": loss, "accuracy": accuracy}
+
 def training_loop(langauge_path,
                   val_subset,
                   test_subset,
@@ -91,8 +115,11 @@ def training_loop(langauge_path,
     test_loader = DataLoader(test_dataset, hyperparameters["batch_size"], collate_fn=pad_batch)
 
     optimizer = AdamW(model.parameters(), lr=hyperparameters["lr"])
-    scheduler = ReduceLROnPlateau(optimizer=optimizer, mode="min", factor=0.5, patience=5)
     criterion = nn.BCEWithLogitsLoss()
+
+    # Cut lr in half if criterion (e.g. val loss) doesn't decrease after 5 epochs.
+    # Parameters taken from FLARE paper.
+    scheduler = ReduceLROnPlateau(optimizer=optimizer, mode="min", factor=0.5, patience=5)
 
     epochs = hyperparameters["max_train_epochs"]
     model.train()
@@ -107,9 +134,14 @@ def training_loop(langauge_path,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        scheduler.step(loss.item())
-        print(f"Lr: {scheduler.get_last_lr()}")
-        print(f"Loss on epoch {epoch} is {loss.item()}")
+
+    # Run validation
+    val_output = evaluate(model=model, dataloader=val_loader, criterion=criterion)
+    val_loss = val_output["loss"]
+    val_acc = val_output["acc"]
+
+    # Update lr
+    scheduler.step(val_loss)
 
     model.eval()
     num_correct = 0
