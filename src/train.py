@@ -167,19 +167,22 @@ def training_loop(langauge_path,
         # Run validation
         val_output = evaluate(model=model, dataloader=val_loader, criterion=criterion)
         val_loss = val_output["loss"]
-        val_acc = val_output["acc"]
+        val_acc = val_output["accuracy"]
 
         # Update lr
         scheduler.step(val_loss)
 
     test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
-
 def main():
 
     args = parse_args()
 
     if args.languages == "all":
         for language in Path(args.path_to_flare).iterdir():
+
+            if not language.is_dir() or language.name.startswith("."):
+                continue
+
             training_loop(langauge_path=language,
                           vocab_path=args.path_to_vocabs,
                           val_subset=args.val_subset,
