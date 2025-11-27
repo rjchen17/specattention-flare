@@ -116,6 +116,47 @@ def evaluate(model, dataloader: DataLoader, criterion):
 
     return {"loss": loss, "accuracy": accuracy}
 
+class EarlyStopper:
+    """
+    Uses a criterion (e.g. val loss) to end training early, if necessary
+    """
+
+    def __init__(self, patience):
+
+        self.patience = patience
+        self.min = None
+        self.criterion_history = None
+        self.stop = False
+
+    def step(self, criterion):
+        # If history is empty, set min to current criterion value and add to list
+        # Do the same if criterion is less than the min
+        if not self.criterion_history or criterion < self.min:
+            self.min = criterion
+            self.criterion_history = [criterion]
+
+        else:
+            self.criterion_history.append(criterion)
+            if len(self.criterion_history) > self.patience:
+                self.stop = True
+                self.criterion_history = []
+
+def test_scheduler_and_es():
+    patience = 5
+    optimizer = AdamW([torch.tensor([0])], lr=1)
+
+    es = EarlyStopper(patience=patience)
+    scheduler = ReduceLROnPlateau(optimizer=optimizer, mode="min", factor=0.5, patience=patience)
+
+    dummy_losses = [10,11,11,11,11,11,11,11,11,11,11,11,11,11]
+
+    for epoch, dummy_loss in enumerate(dummy_losses):
+
+
+        scheduler.step(dummy_loss)
+        es.step(dummy_loss)
+        print(f"Loss: {dummy_loss}, LR: {scheduler.get_last_lr()}")
+
 def training_loop(langauge_path,
                   vocab_path,
                   val_subset,
@@ -123,19 +164,6 @@ def training_loop(langauge_path,
                   model_config_path="../configs/models/default.yml",
                   hyperparameter_config_path="../configs/hyperparameters/default.yml"):
 
-    class EarlyStopper:
-        """
-        Uses a criterion (e.g. val loss) to end training early, if necessary
-        """
-
-        def __init__(self, patience):
-
-            self.patience = patience
-            self.criterion_history = []
-
-        def step(self, criterion):
-
-            self.criterion_history.append(criterion)
 
     with open(model_config_path, 'r') as model_config_file:
         model_config_args = yaml.safe_load(model_config_file)
@@ -166,7 +194,7 @@ def training_loop(langauge_path,
 
     epochs = hyperparameters["max_train_epochs"]
     model.train()
-
+    es = EarlyStopper(patience=10)
     for epoch in range(epochs):
         for batch in train_loader:
 
@@ -185,6 +213,11 @@ def training_loop(langauge_path,
 
         # Update lr
         scheduler.step(val_loss)
+        es.step(val_loss)
+
+        if es.stop:
+            print(f"Early stop at epoch {epoch}. ")
+            break
 
     test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
 def main():
