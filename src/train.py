@@ -235,7 +235,10 @@ def training_loop(language_path,
             print(f"Early stop at epoch {epoch}. ")
             break
 
+    model.load_state_dict(best_checkpoint["model_state"])
     test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
+    best_checkpoint["test_loss"] = test_output["loss"]
+    best_checkpoint["test_acc"] = test_output["accuracy"]
     torch.save(best_checkpoint, Path(checkpoint_path) / f"{Path(language_path).name}_checkpoint.pt")
 def main():
 
@@ -251,6 +254,8 @@ def main():
                           vocab_path=args.path_to_vocabs,
                           val_subset=args.val_subset,
                           test_subset=args.test_subset)
+
+            break
 
 if __name__ == "__main__":
     main()
