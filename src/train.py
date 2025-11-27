@@ -157,12 +157,13 @@ def test_scheduler_and_es():
         es.step(dummy_loss)
         print(f"Loss: {dummy_loss}, LR: {scheduler.get_last_lr()}")
 
-def training_loop(langauge_path,
+def training_loop(language_path,
                   vocab_path,
                   val_subset,
                   test_subset,
                   model_config_path="../configs/models/default.yml",
-                  hyperparameter_config_path="../configs/hyperparameters/default.yml"):
+                  hyperparameter_config_path="../configs/hyperparameters/default.yml",
+                  checkpoint_path="../checkpoints"):
 
 
     with open(model_config_path, 'r') as model_config_file:
@@ -171,9 +172,9 @@ def training_loop(langauge_path,
     with open(hyperparameter_config_path, 'r') as hyperparameter_config_file:
         hyperparameters = yaml.safe_load(hyperparameter_config_file)
 
-    train_dataset = FLAREDataset(language=langauge_path, vocab_path=vocab_path)
-    val_dataset = FLAREDataset(language=langauge_path, subset=val_subset, vocab_path=vocab_path)
-    test_dataset = FLAREDataset(language=langauge_path, subset=test_subset, vocab_path=vocab_path)
+    train_dataset = FLAREDataset(language=language_path, vocab_path=vocab_path)
+    val_dataset = FLAREDataset(language=language_path, subset=val_subset, vocab_path=vocab_path)
+    test_dataset = FLAREDataset(language=language_path, subset=test_subset, vocab_path=vocab_path)
 
     # Set model embedding vocab size
     model_config_args["vocab_size"] = len(train_dataset.vocab) + 1
@@ -194,7 +195,14 @@ def training_loop(langauge_path,
 
     epochs = hyperparameters["max_train_epochs"]
     model.train()
+    # Exit training if criterion (e.g. val loss) doesn't decrease after 10 epochs, also taken from
+    # FLARE paper.
     es = EarlyStopper(patience=10)
+
+    # Keep track of best loss for checkpoint saving
+    best_loss = float('inf')
+    best_checkpoint = None
+
     for epoch in range(epochs):
         for batch in train_loader:
 
@@ -211,6 +219,14 @@ def training_loop(langauge_path,
         val_loss = val_output["loss"]
         val_acc = val_output["accuracy"]
 
+        if val_loss < best_loss:
+            best_checkpoint = {"epoch": epoch,
+                               "model_state": model.state_dict(),
+                               "val_acc": val_acc,
+                               "val_loss": val_loss,
+                                }
+            best_loss = val_loss
+
         # Update lr
         scheduler.step(val_loss)
         es.step(val_loss)
@@ -220,6 +236,7 @@ def training_loop(langauge_path,
             break
 
     test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
+    torch.save(best_checkpoint, Path(checkpoint_path) / f"{Path(language_path).name}_checkpoint.pt")
 def main():
 
     args = parse_args()
@@ -230,7 +247,7 @@ def main():
             if not language.is_dir() or language.name.startswith("."):
                 continue
 
-            training_loop(langauge_path=language,
+            training_loop(language_path=language,
                           vocab_path=args.path_to_vocabs,
                           val_subset=args.val_subset,
                           test_subset=args.test_subset)
