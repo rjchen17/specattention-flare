@@ -15,6 +15,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from spectrans.models import FNet
 from spectrans.config.models import FNetModelConfig
 from pathlib import Path
+import wandb
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -157,7 +158,7 @@ def test_scheduler_and_es():
         es.step(dummy_loss)
         print(f"Loss: {dummy_loss}, LR: {scheduler.get_last_lr()}")
 
-def training_loop(language_path,
+def training_loop(language_path: Path,
                   vocab_path,
                   val_subset,
                   test_subset,
@@ -165,6 +166,7 @@ def training_loop(language_path,
                   hyperparameter_config_path="../configs/hyperparameters/default.yml",
                   checkpoint_path="../checkpoints"):
 
+    wandb.init(project="specattention-flare", name=language_path.name, group="validation-short")
 
     with open(model_config_path, 'r') as model_config_file:
         model_config_args = yaml.safe_load(model_config_file)
@@ -213,11 +215,14 @@ def training_loop(language_path,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            wandb.log({"train_loss": loss.item()})
 
         # Run validation
         val_output = evaluate(model=model, dataloader=val_loader, criterion=criterion)
         val_loss = val_output["loss"]
         val_acc = val_output["accuracy"]
+
+        wandb.log({"val_loss": val_loss, "val_acc": val_acc})
 
         if val_loss < best_loss:
             best_checkpoint = {"epoch": epoch,
@@ -230,6 +235,7 @@ def training_loop(language_path,
         # Update lr
         scheduler.step(val_loss)
         es.step(val_loss)
+        wandb.log({"lr": scheduler.get_last_lr()})
 
         if es.stop:
             print(f"Early stop at epoch {epoch}. ")
@@ -237,8 +243,15 @@ def training_loop(language_path,
 
     model.load_state_dict(best_checkpoint["model_state"])
     test_output = evaluate(model=model, dataloader=test_loader, criterion=criterion)
-    best_checkpoint["test_loss"] = test_output["loss"]
-    best_checkpoint["test_acc"] = test_output["accuracy"]
+    test_loss = test_output["loss"]
+    test_acc = test_output["accuracy"]
+
+    best_checkpoint["test_loss"] = test_loss
+    best_checkpoint["test_acc"] = test_acc
+
+    wandb.log({"test_loss": test_loss, "test_acc": test_acc})
+    wandb.finish()
+
     torch.save(best_checkpoint, Path(checkpoint_path) / f"{Path(language_path).name}_checkpoint.pt")
 def main():
 
@@ -254,8 +267,6 @@ def main():
                           vocab_path=args.path_to_vocabs,
                           val_subset=args.val_subset,
                           test_subset=args.test_subset)
-
-            break
 
 if __name__ == "__main__":
     main()
